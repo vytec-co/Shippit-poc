@@ -1,5 +1,0 @@
----
-# defaults file for db
-
-mysql_root_password: Your_Root_Password
-dest: /root 

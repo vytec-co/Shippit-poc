@@ -1,0 +1,11 @@
+---
+
+#playbook for app server
+
+- name: app server
+  hosts: tag_Name_App #ec2.py dynamic tag
+  become: yes
+  gather_facts: no
+
+  roles:
+    - app

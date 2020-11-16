@@ -1,26 +1,8 @@
 ---
-# tasks file for app
-
-- name: Selinux to Permissive mode
-  selinux:
-    policy: targeted
-    state: permissive
-
-- name: "updatyed"
-  selinux:
-    state: disabled
-
-- name: Installing httpd
-  yum:
-    name:
-      - httpd
-      - php-mysql
-      - mod_php
-    use_backend: yum
-
-- name: Starting httpd service
-  service: name=httpd state=started
-
-- name: Upload files
-  copy: src=index.php dest="{{ dest }}"
-  register: HTTPD_Restarted
+- gem:
+    name: bundler
+    version: latest
+    state: present
+- shell: "(bundle exec rackup -p 3000 >/dev/null 2>&1 &)"
+  async: 10
+  poll: 0
