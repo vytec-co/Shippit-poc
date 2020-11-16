@@ -1,6 +1,6 @@
 variable "ssh_private_key" {
-        default         = "Linux-Frankfurt.pem"
-        description     = "Private key for Frankfurt region"
+        default         = "sydney.pem"
+        description     = "Private key for sydney region"
 }
 
 variable "server_instance_type" {
@@ -19,11 +19,12 @@ variable "secret_key" {
 }
 
 variable "latest_redhat" {
-        default         = "ami-c86c3f23"
+        default         = "ami-044c46b1952ad5861"
         description     = "Latest Redhat AMI"
 }
 
 variable "region" {
-        default         = "eu-central-1"
+        default         = "ap-southeast-2"
         description     = "AWS Region"
 }
+

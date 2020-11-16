@@ -1,8 +1,9 @@
 ---
-- gem:
+- name: "install bundler package"
+  gem:
     name: bundler
     version: latest
     state: present
-- shell: "(bundle exec rackup -p 3000 >/dev/null 2>&1 &)"
-  async: 10
-  poll: 0
+    
+- name: "run bundle command"
+  shell: "(bundle exec rackup -p 3000 >/dev/null 2>&1 &)"

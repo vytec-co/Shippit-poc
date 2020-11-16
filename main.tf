@@ -1,12 +1,10 @@
-#Terraform main config file
-        #Defining access keys and region
+
 provider "aws" {
         region = "${var.region}"
         access_key = "${var.access_key}"
         secret_key = "${var.secret_key}"
 }
 
-        #Selecting default VPC. In the next block we will attach this VPC to the security groups.
 data "aws_vpc" "selected" {
         filter {
                 name    = "tag:Name"
@@ -14,52 +12,19 @@ data "aws_vpc" "selected" {
         }
 }
 
-        #Create new aws security group for database instance. Only MySQL and SSH ports is open for outside.
-resource "aws_security_group" "db_sg" {
-        name            = "mysql_ssh"
-        description     = "For db server"
-        vpc_id          = "${data.aws_vpc.selected.id}" #Default VPC id here
 
-        ingress { #MYSQL Port
-                from_port       = 3306
-                to_port         = 3306
-                protocol        = "tcp"
-                cidr_blocks     = ["0.0.0.0/0"]
-        }
-
-        ingress { #SSH Port
-                from_port       = 22
-                to_port         = 22
-                protocol        = "tcp"
-                cidr_blocks     = ["0.0.0.0/0"]
-        }
-
-        egress  { #Outbound all allow
-                from_port       = 0
-                to_port         = 0
-                protocol        = -1
-                cidr_blocks     = ["0.0.0.0/0"]
-        }
-
-        tags {
-                Name            = "MYSQL-SSH"
-        }
-}
-
-        #Create new aws security group for appliaction instance. Only HTTPS,HTTP and SSH ports is open for outside.
 resource "aws_security_group" "app_sg" {
         name            = "ssh_http_https"
         description     = "For web and ssh access"
-        vpc_id          = "${data.aws_vpc.selected.id}" #Default VPC id here
-
-        ingress {  #HTTP Port
-                from_port       = 80
-                to_port         = 80
+        vpc_id          = "${data.aws_vpc.selected.id}" 
+        ingress {  
+                from_port       = 3000
+                to_port         = 3000
                 protocol        = "tcp"
                 cidr_blocks     = ["0.0.0.0/0"]
 
         }
-        ingress {  #SSH Port
+        ingress {  
                 from_port       = 22
                 to_port         = 22
                 protocol        = "tcp"
@@ -67,7 +32,7 @@ resource "aws_security_group" "app_sg" {
 
         }
 
-        ingress {  #HTTPS Port
+        ingress {  
                 from_port       = 443
                 to_port         = 443
                 protocol        = "tcp"
@@ -75,7 +40,7 @@ resource "aws_security_group" "app_sg" {
 
         }
 
-        egress  {  #Outbound all allow
+        egress  {  
                 from_port       = 0
                 to_port         = 0
                 protocol        = -1
@@ -88,18 +53,16 @@ resource "aws_security_group" "app_sg" {
 
 }
 
-        #Application instance. 
+         
 resource "aws_instance" "app_wm" {
-        ami = "${var.latest_redhat}"  #AMI defined in variables.tf file
-        instance_type = "${var.server_instance_type}"  #Instance type defined in variables.tf file
-        key_name = "Linux-Frankfurt" #KeyPair name to be attached to the instance. Forgot to add in variables :D
-        vpc_security_group_ids = ["${aws_security_group.app_sg.id}"]    #Security group id which we already created
+        ami = "${var.latest_redhat}"  
+        instance_type = "${var.server_instance_type}"  #
+        key_name = "sydney" 
+        vpc_security_group_ids = ["${aws_security_group.app_sg.id}"]    
 
         tags {
             Name = "App"
         }
-                #Because AWS instance needs some time to be ready for usage we will use below trick with remote-exec. 
-                #As per documentation remote-exec waits for successful connection and only after this runs command. 
           provisioner "remote-exec" {
                 inline = ["sudo hostname"]
 
@@ -109,11 +72,112 @@ resource "aws_instance" "app_wm" {
                         private_key = "${file(var.ssh_private_key)}"
                 }
         }
-        
-                #local-exec runs our app server related playbook
          provisioner "local-exec" {
-                command ="ansible-playbook -i ec2.py app.yml --private-key=Linux-Frankfurt.pem --user ec2-user"
+                command ="ansible-playbook -i ec2.py app.yml --private-key=sydney.pem --user ec2-user"
         }
 
 }
 
+resource "aws_security_group" "lb_sg" {
+        name            = "ssh_http_https"
+        description     = "For web and ssh access"
+        vpc_id          = "${data.aws_vpc.selected.id}" 
+        ingress {  
+                from_port       = 3000
+                to_port         = 3000
+                protocol        = "tcp"
+                cidr_blocks     = ["0.0.0.0/0"]
+
+        }
+       
+
+        ingress {  
+                from_port       = 443
+                to_port         = 443
+                protocol        = "tcp"
+                cidr_blocks     = ["0.0.0.0/0"]
+
+        }
+
+        egress  {  
+                from_port       = 0
+                to_port         = 0
+                protocol        = -1
+                cidr_blocks     = ["0.0.0.0/0"]
+        }
+
+        tags {
+                Name    = "SSH-HTTP-HTTPS"
+        }
+
+}
+
+resource "aws_lb" "helloworld" {
+  name               = "helloworld-lb-tf"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.lb_sg.id]
+  subnets            = aws_subnet.public.*.id
+
+  enable_deletion_protection = true
+
+  access_logs {
+    bucket  = aws_s3_bucket.lb_logs.bucket
+    prefix  = "helloworld-lb"
+    enabled = true
+  }
+
+  tags = {
+    Environment = "poc"
+  }
+}
+
+resource "aws_placement_group" "helloworld" {
+  name     = "helloworld"
+  strategy = "cluster"
+}
+
+resource "aws_autoscaling_group" "hello-asg" {
+  name                      = "hello-asg"
+  max_size                  = 5
+  min_size                  = 2
+  health_check_grace_period = 300
+  health_check_type         = "ELB"
+  desired_capacity          = 4
+  force_delete              = true
+  placement_group           = aws_placement_group.helloworld.id
+  launch_configuration      = aws_launch_configuration.helloworld.name
+  vpc_zone_identifier       = [aws_subnet.example1.id, aws_subnet.example2.id]
+
+  initial_lifecycle_hook {
+    name                 = "helloworld"
+    default_result       = "CONTINUE"
+    heartbeat_timeout    = 2000
+    lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
+
+    notification_metadata = <<EOF
+{
+  "hello": "world"
+}
+EOF
+
+    notification_target_arn = "arn:aws:sqs:us-east-1:444455556666:queue1*"
+    role_arn                = "arn:aws:iam::123456789012:role/S3Access"
+  }
+
+  tag {
+    key                 = "hello"
+    value               = "world"
+    propagate_at_launch = true
+  }
+
+  timeouts {
+    delete = "15m"
+  }
+
+  tag {
+    key                 = "lorem"
+    value               = "ipsum"
+    propagate_at_launch = false
+  }
+}
