@@ -39,28 +39,32 @@ Team Shippit
 #############################################
 Environments to setup for CI-CD:
 
-1. Github/BitBucket
-2. Jenkins 
-2. Kubernetes
-3. ECS
-4. EC2
+1. AWS 
+2. Github/BitBucket
+3. Jenkins 
+4. Kubernetes
+5. ECS
+6. EC2
+ 
 
 1st approach Using K8S:
 1. Write Dockerfile and build an image
 2. Upload an image to Private registry/ECR
 3. deploy an application into k8s:
     1. write deployment manifest object with replicas
-    2. write service manifest object
-    3. write ingress object wioth application Load balancer.
+    2. add Horizontal Pod Autoscaler based on the cpu load
+    3. write service manifest object
+    4. write ingress object wioth application Load balancer.
         ingress ==> service ==> deployment ==> pod
 
-2nd approach Using ECS:
+2nd approach Using ECS-Fargate:
   1. Write Dockerfile anmd build an image
   2. Upload an image to Private registry/ECR
   3. deploy an application into ECS:
       1. write task-definitions
       2. create or update task-definitions
-      3. deploy service with no.of tasks.
+      3. deploy service with  desired number of tasks.
+      4. scale in and scale out configuation using cloud watch for service
       4. attach loadbalancer.
 
 3rd approach Using EC2 using Terraform and Ansible:
@@ -68,14 +72,17 @@ Environments to setup for CI-CD:
  2. write ansible playbook to install bundle and run budle exec command.
  3. create loadbalancer with terraform
  4. attach loadbalancer to ec2 instance as part of playbook.
+ 5. increase no of host based on cpu load using ASG,Cloudwatch
 
 CI-CD:
+  0. create aws account for dev, test, stage, prod environments.
   1. Create Jenkins mutlibranch pipeline to run the jobs with repetitive build, provision and deployment
-    1. dev environment going to upgrade if gitbranch 'develop' code is modified.
-    2. stage environment going to upgrade if gitbranch 'release' code is modified.
-    3. prod environment going to upgrade if gitbranch 'main/master' code is modified.
+    1. dev environment going to deploy if gitbranch 'develop' updated.
+    2. promote test deployment based on dev testing execution success.
+    2. stage environment going to upgrade if gitbranch 'release' updated.
+    3. prod environment going to upgrade if gitbranch 'main/master' updated.
     
 
- 
-
-     
+sourcecode:
+ 1. Jenkinsfile
+ 2. terraform scripts, ansible playbooks.
